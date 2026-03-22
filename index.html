@@ -308,7 +308,29 @@ function genTxs(days){
   return txs;
 }
 
-const ALL=genTxs(90);
+const ALL = [
+  {
+    id: "TXN-100001",
+    date: new Date("2026-03-22"),
+    product: "Premium Dry Dog Food 5kg",
+    state: "California",
+    channel: "TikTok",       // TikTok / Facebook / Google Ads / Snapchat / Instagram
+    qty: 3,
+    amount: "149.99",
+    status: "completed"      // completed / pending / refunded
+  },
+  {
+    id: "TXN-100002",
+    date: new Date("2026-03-21"),
+    product: "Wet Cat Food 24pk",
+    state: "Texas",
+    channel: "Instagram",
+    qty: 1,
+    amount: "54.99",
+    status: "pending"
+  },
+  // ... остальные строки
+];
 
 /* ── STATE ──────────────────────────────────────────────────────── */
 let activeChannels=new Set(CHANNELS.map(c=>c.name));
