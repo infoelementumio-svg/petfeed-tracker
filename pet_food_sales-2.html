@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PetFeed Sales Tracker — USA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080a0e;
+    --surface: #0e1117;
+    --surface2: #151820;
+    --border: #1e2330;
+    --accent: #f5c518;
+    --accent2: #00d4aa;
+    --text: #dde2ee;
+    --muted: #5a6175;
+    --danger: #ff4d6d;
+    --tiktok: #fe2c55;
+    --facebook: #1877f2;
+    --google: #fbbc04;
+    --snapchat: #fffc00;
+    --instagram: #e1306c;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 9999; opacity: 0.35;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px; border-bottom: 1px solid var(--border);
+    background: var(--surface); position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 14px; }
+  .logo-icon { width: 38px; height: 38px; background: var(--accent); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .logo-text { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 2px; line-height: 1; }
+  .logo-sub  { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 20px; }
+  .live-badge { display: flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--accent2); letter-spacing: 2px; text-transform: uppercase; }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.5)} }
+  #clock { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--muted); }
+
+  /* ─── FILTER BAR ─── */
+  .filter-bar {
+    padding: 12px 32px; background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .filter-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; }
+  .date-tabs { display: flex; gap: 3px; background: var(--bg); padding: 3px; border-radius: 8px; border: 1px solid var(--border); }
+  .date-tab { padding: 5px 14px; border-radius: 6px; border: none; background: transparent; color: var(--muted); font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; }
+  .date-tab.active { background: var(--accent); color: #000; }
+  .date-input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 6px 12px; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 12px; cursor: pointer; }
+  .channel-filter { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ch-chip { padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); background: transparent; font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s; color: var(--muted); }
+  .ch-chip.active { color: #000; border-color: transparent; }
+  .ch-chip[data-ch="TikTok"].active    { background: var(--tiktok); color:#fff; }
+  .ch-chip[data-ch="Facebook"].active  { background: var(--facebook); color:#fff; }
+  .ch-chip[data-ch="Google Ads"].active{ background: var(--google); }
+  .ch-chip[data-ch="Snapchat"].active  { background: var(--snapchat); }
+  .ch-chip[data-ch="Instagram"].active { background: var(--instagram); color:#fff; }
+
+  /* ─── MAIN ─── */
+  main { padding: 24px 32px; display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; }
+
+  /* ─── KPI ─── */
+  .kpi-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .kpi-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+    position: relative; overflow: hidden; transition: border-color .2s, transform .2s; animation: fadeUp .4s ease both;
+  }
+  .kpi-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .kpi-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--accent); transform:scaleX(0); transform-origin:left; transition:transform .3s; }
+  .kpi-card:hover::after { transform: scaleX(1); }
+  .kpi-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+  .kpi-value { font-family: 'Bebas Neue', sans-serif; font-size: 38px; letter-spacing: 1px; color: var(--text); line-height: 1; }
+  .kpi-delta { font-family: 'JetBrains Mono', monospace; font-size: 10px; margin-top: 8px; color: var(--accent2); }
+  .kpi-delta.neg { color: var(--danger); }
+  .kpi-icon { position: absolute; top: 16px; right: 16px; font-size: 22px; opacity: 0.12; }
+
+  /* ─── PANELS ─── */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px;
+    overflow: hidden; animation: fadeUp .4s ease both;
+  }
+  .panel-title {
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 1.5px;
+    margin-bottom: 16px; color: var(--text);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-title span { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); font-weight: 400; letter-spacing: 1.5px; text-transform: uppercase; }
+
+  .chart-revenue  { grid-column: 1 / 8; }
+  .chart-channels { grid-column: 8 / 13; }
+  .chart-avgcheck { grid-column: 1 / 5; }
+  .heatmap-panel  { grid-column: 5 / 13; }
+  .table-panel    { grid-column: 1 / -1; }
+
+  /* ─── CHANNEL BARS ─── */
+  .channel-list { display: flex; flex-direction: column; gap: 14px; }
+  .ch-row { display: grid; grid-template-columns: 100px 1fr 54px; align-items: center; gap: 10px; }
+  .ch-name { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+  .ch-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .ch-bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .ch-bar-fill  { height: 100%; border-radius: 3px; transition: width 1s ease; }
+  .ch-pct { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); text-align: right; }
+
+  /* ─── HEATMAP ─── */
+  #usaMap { width: 100%; height: 260px; }
+  #usaMap path { stroke: #080a0e; stroke-width: 0.7; cursor: pointer; transition: opacity .15s; }
+  #usaMap path:hover { opacity: 0.75; stroke: var(--accent); stroke-width: 1.5; }
+  #usaMap path.state-selected { stroke: var(--accent) !important; stroke-width: 2 !important; }
+
+  .map-legend { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .map-legend-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+  .legend-gradient { flex: 1; height: 6px; border-radius: 3px; background: linear-gradient(90deg,#141824,#0a5c6b,#00d4aa,#f5c518); }
+
+  /* ─── TOOLTIP ─── */
+  #mapTooltip {
+    position: fixed; background: #13161f; border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px; pointer-events: none;
+    display: none; z-index: 1000; min-width: 170px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  }
+  .tt-state { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 1.5px; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 8px; }
+  .tt-row { display: flex; justify-content: space-between; gap: 16px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); margin-top: 5px; }
+  .tt-val { color: var(--text); font-weight: 700; }
+
+  /* ─── TABLE ─── */
+  .tx-wrap { max-height: 320px; overflow-y: auto; }
+  .tx-wrap::-webkit-scrollbar { width: 4px; }
+  .tx-wrap::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 2px; }
+  .tx-table { width: 100%; border-collapse: collapse; }
+  .tx-table th { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .tx-table td { padding: 11px 14px; font-size: 13px; font-weight: 400; border-bottom: 1px solid #12141b; }
+  .tx-table tr:hover td { background: var(--surface2); }
+  .ch-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .status-badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .status-completed { background: rgba(0,212,170,.12); color: var(--accent2); }
+  .status-pending   { background: rgba(245,197,24,.10); color: var(--accent); }
+  .status-refunded  { background: rgba(255,77,109,.12); color: var(--danger); }
+  .chart-wrap { position: relative; height: 200px; }
+
+  @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+  @media(max-width:1100px){
+    .kpi-row{grid-template-columns:repeat(3,1fr)}
+    .chart-revenue,.chart-channels,.chart-avgcheck,.heatmap-panel{grid-column:1/-1}
+    #usaMap{height:300px}
+  }
+  @media(max-width:700px){
+    main{padding:14px} header,.filter-bar{padding:12px 14px}
+    .kpi-row{grid-template-columns:repeat(2,1fr)} .logo-text{font-size:20px}
+  }
+</style>
+</head>
+<body>
+
+<div id="mapTooltip">
+  <div class="tt-state" id="tt-state"></div>
+  <div class="tt-row"><span>Sales</span><span class="tt-val" id="tt-sales"></span></div>
+  <div class="tt-row"><span>Revenue</span><span class="tt-val" id="tt-rev"></span></div>
+  <div class="tt-row"><span>Avg. Order</span><span class="tt-val" id="tt-avg"></span></div>
+  <div class="tt-row"><span>Top Channel</span><span class="tt-val" id="tt-ch"></span></div>
+</div>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🐾</div>
+    <div>
+      <div class="logo-text">PetFeed Tracker</div>
+      <div class="logo-sub">USA Sales Intelligence</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <div id="clock"></div>
+  </div>
+</header>
+
+<div class="filter-bar">
+  <div class="filter-label">Period:</div>
+  <div class="date-tabs">
+    <button class="date-tab" onclick="setRange('today',this)">Today</button>
+    <button class="date-tab active" onclick="setRange('7d',this)">7 Days</button>
+    <button class="date-tab" onclick="setRange('30d',this)">30 Days</button>
+    <button class="date-tab" onclick="setRange('90d',this)">90 Days</button>
+  </div>
+  <div class="filter-label" style="margin-left:8px">Date:</div>
+  <input type="date" class="date-input" id="datePicker" onchange="onDateChange()">
+  <div class="filter-label" style="margin-left:8px">Channel:</div>
+  <div class="channel-filter">
+    <button class="ch-chip active" data-ch="TikTok"     onclick="toggleCh(this)">🎵 TikTok</button>
+    <button class="ch-chip active" data-ch="Facebook"   onclick="toggleCh(this)">📘 Facebook</button>
+    <button class="ch-chip active" data-ch="Google Ads" onclick="toggleCh(this)">🔍 Google Ads</button>
+    <button class="ch-chip active" data-ch="Snapchat"   onclick="toggleCh(this)">👻 Snapchat</button>
+    <button class="ch-chip active" data-ch="Instagram"  onclick="toggleCh(this)">📸 Instagram</button>
+  </div>
+</div>
+
+<main>
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <div class="panel chart-revenue" style="animation-delay:.05s">
+    <div class="panel-title">Daily Revenue <span id="chartSubtitle">LAST 7 DAYS</span></div>
+    <div class="chart-wrap"><canvas id="revenueChart"></canvas></div>
+  </div>
+
+  <div class="panel chart-channels" style="animation-delay:.1s">
+    <div class="panel-title">Sales Channels <span>SHARE %</span></div>
+    <div class="channel-list" id="channelList"></div>
+  </div>
+
+  <div class="panel chart-avgcheck" style="animation-delay:.12s">
+    <div class="panel-title">Avg. Order Value <span>BY CHANNEL $</span></div>
+    <div class="chart-wrap"><canvas id="avgChart"></canvas></div>
+  </div>
+
+  <div class="panel heatmap-panel" style="animation-delay:.15s">
+    <div class="panel-title">USA Heat Map <span id="mapStateLabel">CLICK STATE TO FILTER</span></div>
+    <svg id="usaMap"></svg>
+    <div class="map-legend">
+      <div class="map-legend-label">Low</div>
+      <div class="legend-gradient"></div>
+      <div class="map-legend-label">High</div>
+    </div>
+  </div>
+
+  <div class="panel table-panel" style="animation-delay:.2s">
+    <div class="panel-title">Transactions <span id="txCount">— RECORDS</span></div>
+    <div class="tx-wrap">
+      <table class="tx-table">
+        <thead><tr>
+          <th>ID</th><th>Date / Time</th><th>Product</th>
+          <th>State</th><th>Channel</th><th>Qty</th><th>Amount</th><th>Status</th>
+        </tr></thead>
+        <tbody id="txBody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ── DATA ───────────────────────────────────────────────────────── */
+const CHANNELS=[
+  {name:'TikTok',    color:'#fe2c55',emoji:'🎵'},
+  {name:'Facebook',  color:'#1877f2',emoji:'📘'},
+  {name:'Google Ads',color:'#fbbc04',emoji:'🔍'},
+  {name:'Snapchat',  color:'#fffc00',emoji:'👻'},
+  {name:'Instagram', color:'#e1306c',emoji:'📸'},
+];
+
+const FIPS={
+  '01':'Alabama','02':'Alaska','04':'Arizona','05':'Arkansas','06':'California',
+  '08':'Colorado','09':'Connecticut','10':'Delaware','12':'Florida','13':'Georgia',
+  '15':'Hawaii','16':'Idaho','17':'Illinois','18':'Indiana','19':'Iowa',
+  '20':'Kansas','21':'Kentucky','22':'Louisiana','23':'Maine','24':'Maryland',
+  '25':'Massachusetts','26':'Michigan','27':'Minnesota','28':'Mississippi','29':'Missouri',
+  '30':'Montana','31':'Nebraska','32':'Nevada','33':'New Hampshire','34':'New Jersey',
+  '35':'New Mexico','36':'New York','37':'North Carolina','38':'North Dakota','39':'Ohio',
+  '40':'Oklahoma','41':'Oregon','42':'Pennsylvania','44':'Rhode Island','45':'South Carolina',
+  '46':'South Dakota','47':'Tennessee','48':'Texas','49':'Utah','50':'Vermont',
+  '51':'Virginia','53':'Washington','54':'West Virginia','55':'Wisconsin','56':'Wyoming',
+};
+const STATES=Object.values(FIPS);
+const PRODUCTS=[
+  'Premium Dry Dog Food 5kg','Wet Cat Food 24pk','Puppy Starter Kit',
+  'Senior Dog Kibble 10kg','Raw Cat Food Pouches','Grain-Free Dog 3kg',
+  'Kitten Milk Formula','Dental Chews 60pc','Organic Bird Seed','Small Breed Bites 2kg',
+];
+
+function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function rndF(a,b){return (Math.random()*(b-a)+a).toFixed(2);}
+
+function genTxs(days){
+  const txs=[];const now=new Date();
+  for(let d=0;d<days;d++){
+    const dt=new Date(now);dt.setDate(dt.getDate()-d);
+    for(let i=0;i<rnd(8,28);i++){
+      const ch=CHANNELS[rnd(0,4)];const qty=rnd(1,5);const price=parseFloat(rndF(18,120));
+      txs.push({
+        id:`TXN-${100000+txs.length}`,date:new Date(dt),
+        product:PRODUCTS[rnd(0,9)],state:STATES[rnd(0,STATES.length-1)],
+        channel:ch.name,qty,amount:(qty*price).toFixed(2),
+        status:['completed','completed','completed','pending','refunded'][rnd(0,4)]
+      });
+    }
+  }
+  return txs;
+}
+
+const ALL=genTxs(90);
+
+/* ── STATE ──────────────────────────────────────────────────────── */
+let activeChannels=new Set(CHANNELS.map(c=>c.name));
+let activeRange='7d';
+let customDate=null;
+let filteredState=null;
+
+function filtered(){
+  const now=new Date();
+  return ALL.filter(tx=>{
+    if(!activeChannels.has(tx.channel))return false;
+    if(filteredState&&tx.state!==filteredState)return false;
+    if(customDate){const d=new Date(customDate+'T00:00:00');return tx.date.toDateString()===d.toDateString();}
+    const diff=(now-tx.date)/86400000;
+    if(activeRange==='today')return diff<1;
+    if(activeRange==='7d')return diff<7;
+    if(activeRange==='30d')return diff<30;
+    return diff<90;
+  });
+}
+
+/* ── KPI ────────────────────────────────────────────────────────── */
+function renderKPI(txs){
+  const rev=txs.reduce((s,t)=>s+parseFloat(t.amount),0);
+  const avg=txs.length?(rev/txs.length).toFixed(2):0;
+  const units=txs.reduce((s,t)=>s+t.qty,0);
+  const cards=[
+    {l:'Total Sales',   v:txs.length.toLocaleString(), d:'+12.4%', icon:'🛒'},
+    {l:'Revenue',       v:`$${(rev/1000).toFixed(1)}K`,d:'+8.7%',  icon:'💰'},
+    {l:'Avg. Order',    v:`$${avg}`,                   d:'-1.2%',  neg:true, icon:'🧾'},
+    {l:'Units Sold',    v:units.toLocaleString(),       d:'+15.3%', icon:'📦'},
+    {l:'Conv. Rate',    v:`${(Math.random()*2+2.5).toFixed(1)}%`, d:'+0.4%', icon:'📈'},
+  ];
+  document.getElementById('kpiRow').innerHTML=cards.map((c,i)=>`
+    <div class="kpi-card" style="animation-delay:${i*.07}s">
+      <div class="kpi-icon">${c.icon}</div>
+      <div class="kpi-label">${c.l}</div>
+      <div class="kpi-value">${c.v}</div>
+      <div class="kpi-delta${c.neg?' neg':''}">▲ ${c.d} vs prev. period</div>
+    </div>`).join('');
+}
+
+/* ── CHARTS ─────────────────────────────────────────────────────── */
+let revC=null,avgC=null;
+
+function renderRevChart(txs){
+  const map={};
+  txs.forEach(t=>{const k=t.date.toISOString().split('T')[0];map[k]=(map[k]||0)+parseFloat(t.amount);});
+  const sorted=Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0]));
+  const ctx=document.getElementById('revenueChart').getContext('2d');
+  if(revC)revC.destroy();
+  const g=ctx.createLinearGradient(0,0,0,200);
+  g.addColorStop(0,'rgba(245,197,24,.28)');g.addColorStop(1,'rgba(245,197,24,0)');
+  revC=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:sorted.map(([d])=>new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric'})),
+      datasets:[{data:sorted.map(([,v])=>v.toFixed(2)),borderColor:'#f5c518',backgroundColor:g,borderWidth:2,pointBackgroundColor:'#f5c518',pointRadius:3,pointHoverRadius:6,tension:.4,fill:true}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#5a6175',font:{family:'JetBrains Mono',size:9}},grid:{color:'#1e2330'}},
+        y:{ticks:{color:'#5a6175',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+Number(v).toLocaleString()},grid:{color:'#1e2330'}}
+      }}
+  });
+}
+
+function renderAvgChart(txs){
+  const map={};CHANNELS.forEach(c=>{map[c.name]={t:0,n:0};});
+  txs.forEach(t=>{if(map[t.channel]){map[t.channel].t+=parseFloat(t.amount)/t.qty;map[t.channel].n++;}});
+  const labels=Object.keys(map);
+  const ctx=document.getElementById('avgChart').getContext('2d');
+  if(avgC)avgC.destroy();
+  const colors=labels.map(k=>CHANNELS.find(c=>c.name===k).color);
+  avgC=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:labels.map(l=>l.split(' ')[0]),
+      datasets:[{data:labels.map(k=>map[k].n?(map[k].t/map[k].n).toFixed(2):0),backgroundColor:colors.map(c=>c+'cc'),borderColor:colors,borderWidth:2,borderRadius:6}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{color:'#5a6175',font:{family:'JetBrains Mono',size:9}},grid:{color:'#1e2330'}},
+        y:{ticks:{color:'#5a6175',font:{family:'JetBrains Mono',size:9},callback:v=>'$'+v},grid:{color:'#1e2330'}}
+      }}
+  });
+}
+
+function renderChannels(txs){
+  const map={};CHANNELS.forEach(c=>{map[c.name]=0;});
+  txs.forEach(t=>{if(map[t.channel]!==undefined)map[t.channel]++;});
+  const total=txs.length||1;
+  document.getElementById('channelList').innerHTML=CHANNELS.map(c=>{
+    const pct=((map[c.name]/total)*100).toFixed(1);
+    return`<div class="ch-row">
+      <div class="ch-name"><div class="ch-dot" style="background:${c.color}"></div>${c.emoji} ${c.name.split(' ')[0]}</div>
+      <div class="ch-bar-track"><div class="ch-bar-fill" style="width:${pct}%;background:${c.color}"></div></div>
+      <div class="ch-pct">${pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── HEATMAP ────────────────────────────────────────────────────── */
+let geoData=null;
+
+function stateStats(txs){
+  const m={};STATES.forEach(s=>{m[s]={sales:0,revenue:0,byCh:{}};});
+  txs.forEach(t=>{
+    if(m[t.state]){
+      m[t.state].sales++;
+      m[t.state].revenue+=parseFloat(t.amount);
+      m[t.state].byCh[t.channel]=(m[t.state].byCh[t.channel]||0)+1;
+    }
+  });
+  return m;
+}
+
+async function initMap(){
+  try{
+    const r=await fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json');
+    geoData=await r.json();
+    renderMap(stateStats(filtered()));
+  }catch(e){
+    document.getElementById('usaMap').innerHTML='<text x="50%" y="50%" fill="#5a6175" text-anchor="middle" font-family="JetBrains Mono" font-size="12">Map unavailable offline</text>';
+  }
+}
+
+function renderMap(stats){
+  if(!geoData)return;
+  const svg=d3.select('#usaMap');
+  svg.selectAll('*').remove();
+  const el=document.getElementById('usaMap');
+  const W=el.clientWidth||700,H=el.clientHeight||260;
+  const proj=d3.geoAlbersUsa().fitSize([W,H],topojson.feature(geoData,geoData.objects.states));
+  const path=d3.geoPath().projection(proj);
+  const feat=topojson.feature(geoData,geoData.objects.states);
+  const maxS=Math.max(...Object.values(stats).map(d=>d.sales),1);
+
+  function getColor(sales){
+    if(sales===0)return'#141824';
+    const t=sales/maxS;
+    if(t<.33)return d3.interpolateRgb('#1e2a3a','#0a5c6b')(t/.33);
+    if(t<.66)return d3.interpolateRgb('#0a5c6b','#00d4aa')((t-.33)/.33);
+    return d3.interpolateRgb('#00d4aa','#f5c518')((t-.66)/.34);
+  }
+
+  const tip=document.getElementById('mapTooltip');
+
+  svg.selectAll('path')
+    .data(feat.features)
+    .enter().append('path')
+    .attr('d',path)
+    .attr('fill',d=>{
+      const n=FIPS[String(d.id).padStart(2,'0')];
+      return n?getColor(stats[n]?.sales||0):'#141824';
+    })
+    .classed('state-selected',d=>FIPS[String(d.id).padStart(2,'0')]===filteredState)
+    .on('mousemove',function(ev,d){
+      const n=FIPS[String(d.id).padStart(2,'0')]||'?';
+      const s=stats[n]||{sales:0,revenue:0,byCh:{}};
+      const avg=s.sales?(s.revenue/s.sales).toFixed(2):'0.00';
+      const topCh=Object.entries(s.byCh).sort((a,b)=>b[1]-a[1])[0];
+      document.getElementById('tt-state').textContent=n;
+      document.getElementById('tt-sales').textContent=s.sales.toLocaleString();
+      document.getElementById('tt-rev').textContent='$'+(s.revenue/1000).toFixed(1)+'K';
+      document.getElementById('tt-avg').textContent='$'+avg;
+      document.getElementById('tt-ch').textContent=topCh?topCh[0]:'—';
+      tip.style.display='block';
+      tip.style.left=(ev.clientX+14)+'px';
+      tip.style.top=(ev.clientY-10)+'px';
+    })
+    .on('mouseleave',()=>{tip.style.display='none';})
+    .on('click',function(ev,d){
+      const n=FIPS[String(d.id).padStart(2,'0')];
+      if(!n)return;
+      filteredState=filteredState===n?null:n;
+      document.getElementById('mapStateLabel').textContent=filteredState?filteredState.toUpperCase():'CLICK STATE TO FILTER';
+      render();
+    });
+}
+
+/* ── TABLE ──────────────────────────────────────────────────────── */
+function renderTxs(txs){
+  document.getElementById('txCount').textContent=`${txs.length} RECORDS`;
+  document.getElementById('txBody').innerHTML=txs.slice(0,100).map(tx=>{
+    const ch=CHANNELS.find(c=>c.name===tx.channel);
+    const sc={completed:'status-completed',pending:'status-pending',refunded:'status-refunded'}[tx.status];
+    const sl={completed:'✓ Completed',pending:'⏳ Pending',refunded:'↩ Refunded'}[tx.status];
+    return`<tr>
+      <td><span style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)">${tx.id}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted)">
+        ${tx.date.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}<br>
+        <span style="color:#2a2e3a">${tx.date.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</span>
+      </td>
+      <td style="font-size:12px;font-weight:500">${tx.product}</td>
+      <td style="font-weight:700">${tx.state}</td>
+      <td><span class="ch-badge" style="background:${ch?.color}22;color:${ch?.color}">${ch?.emoji} ${tx.channel}</span></td>
+      <td style="font-family:'JetBrains Mono',monospace;text-align:center">${tx.qty}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--accent)">$${tx.amount}</td>
+      <td><span class="status-badge ${sc}">${sl}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── RENDER ─────────────────────────────────────────────────────── */
+function render(){
+  const txs=filtered();
+  renderKPI(txs);
+  renderRevChart(txs);
+  renderAvgChart(txs);
+  renderChannels(txs);
+  renderMap(stateStats(txs));
+  renderTxs(txs);
+}
+
+/* ── CONTROLS ───────────────────────────────────────────────────── */
+function setRange(r,btn){
+  activeRange=r;customDate=null;
+  document.getElementById('datePicker').value='';
+  document.querySelectorAll('.date-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const labels={today:'TODAY','7d':'LAST 7 DAYS','30d':'LAST 30 DAYS','90d':'LAST 90 DAYS'};
+  document.getElementById('chartSubtitle').textContent=labels[r];
+  render();
+}
+function onDateChange(){
+  customDate=document.getElementById('datePicker').value;
+  if(customDate){
+    activeRange=null;
+    document.querySelectorAll('.date-tab').forEach(b=>b.classList.remove('active'));
+    document.getElementById('chartSubtitle').textContent=customDate;
+    render();
+  }
+}
+function toggleCh(btn){
+  const ch=btn.dataset.ch;
+  if(activeChannels.has(ch)){if(activeChannels.size===1)return;activeChannels.delete(ch);btn.classList.remove('active');}
+  else{activeChannels.add(ch);btn.classList.add('active');}
+  render();
+}
+
+/* ── CLOCK ──────────────────────────────────────────────────────── */
+function tick(){
+  document.getElementById('clock').textContent=new Date().toLocaleString('en-US',{
+    month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'
+  });
+}
+setInterval(tick,1000);tick();
+
+/* ── INIT ───────────────────────────────────────────────────────── */
+window.addEventListener('resize',()=>{if(geoData)renderMap(stateStats(filtered()));});
+document.getElementById('datePicker').value=new Date().toISOString().split('T')[0];
+render();
+initMap();
+</script>
+</body>
+</html>
